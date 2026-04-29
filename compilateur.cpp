@@ -31,17 +31,15 @@ using namespace std;
 enum OPREL {EQU, DIFF, INF, SUP, INFE, SUPE, WTFR};
 enum OPADD {ADD, SUB, OR, WTFA};
 enum OPMUL {MUL, DIV, MOD, AND ,WTFM};
-enum OPFUNC {IF, THEN, ELSE, WHILE, DO, FOR, To, BEGIN, END}
 
-TOKEN current;				// Current token
-
+TOKEN current;	// Current token
 
 FlexLexer* lexer = new yyFlexLexer; // This is the flex tokeniser
 // tokens can be read using lexer->yylex()
 // lexer->yylex() returns the type of the lexicon entry (see enum TOKEN in tokeniser.h)
 // and lexer->YYText() returns the lexicon entry as a string
 
-	
+
 set<string> DeclaredVariables;
 unsigned long TagNumber=0;
 
@@ -286,6 +284,8 @@ void Expression(void){
 	}
 }
 
+void Statement(void);
+
 // AssignementStatement := Identifier ":=" Expression
 void AssignementStatement(void){
 	string variable;
@@ -361,7 +361,7 @@ void ForStatement(void){
 }
 
 void BlockStatement(void){
-	if(current == BEGIN){
+	if(current == BEG){
 		current=(TOKEN) lexer->yylex();
 		Statement();
 		while(current==SEMICOLON){
@@ -387,7 +387,7 @@ void Statement(void){
 		WhileStatement();
 	else if(current == FOR)
 		ForStatement();
-	else if(current == BEGIN)
+	else if(current == BEG)
 		BlockStatement();
 	else
 		Error("Instruction inconnue");
@@ -431,10 +431,3 @@ int main(void){	// First version : Source code on standard input and assembly co
 	}
 
 }
-		
-			
-
-
-
-
-
