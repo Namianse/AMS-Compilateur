@@ -31,6 +31,7 @@ using namespace std;
 enum OPREL {EQU, DIFF, INF, SUP, INFE, SUPE, WTFR};
 enum OPADD {ADD, SUB, OR, WTFA};
 enum OPMUL {MUL, DIV, MOD, AND ,WTFM};
+enum OPFUNC {IF, THEN, ELSE, WHILE, DO, FOR, To, BEGIN, END}
 
 TOKEN current;				// Current token
 
@@ -58,7 +59,11 @@ void Error(string s){
 // Program := [DeclarationPart] StatementPart
 // DeclarationPart := "[" Letter {"," Letter} "]"
 // StatementPart := Statement {";" Statement} "."
-// Statement := AssignementStatement
+// Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement
+// IfStatement := "IF" Expression "THEN" Statement [ "ELSE" Statement ]
+// WhileStatement := "WHILE" Expression "DO" Statement
+// ForStatement := "FOR" AssignementStatement "To" Expression "DO" Statement
+// BlockStatement := "BEGIN" Statement { ";" Statement } "END"
 // AssignementStatement := Letter "=" Expression
 
 // Expression := SimpleExpression [RelationalOperator SimpleExpression]
@@ -299,9 +304,93 @@ void AssignementStatement(void){
 	cout << "\tpop "<<variable<<endl;
 }
 
+// IfStatement := "IF" Expression "THEN" Statement [ "ELSE" Statement ]
+void IfStatement(void){
+	if(current == IF){
+		current=(TOKEN) lexer->yylex();
+		Expression();
+		if(current == THEN){
+			current=(TOKEN) lexer->yylex();
+			Statement();
+			if(current == ELSE){
+				current=(TOKEN) lexer->yylex();
+				Statement();
+			}
+		} else {
+			Error("Un THEN est attendu.");
+		}
+	} else {
+		Error("Un IF est attendu.");
+	}
+}
+
+void WhileStatement(void){
+	if(current == WHILE){
+		current=(TOKEN) lexer->yylex();
+		Expression();
+		if(current == DO){
+			current=(TOKEN) lexer->yylex();
+			Statement();
+		} else {
+			Error("Un DO est attendu.");
+		}
+	} else {
+		Error("Un WHILE est attendu.");
+	}
+}
+
+void ForStatement(void){
+	if(current == FOR){
+		current=(TOKEN) lexer->yylex();
+		AssignementStatement();
+		if(current == TO){
+			current=(TOKEN) lexer->yylex();
+			Expression();
+			if(current == DO){
+				current=(TOKEN) lexer->yylex();
+				Statement();
+			} else {
+				Error("Un DO est attendu.");
+			}
+		} else {
+			Error("Un TO est attendu.");
+		}
+	} else {
+		Error("Un FOR est attendu.");
+	}
+}
+
+void BlockStatement(void){
+	if(current == BEGIN){
+		current=(TOKEN) lexer->yylex();
+		Statement();
+		while(current==SEMICOLON){
+			current=(TOKEN) lexer->yylex();
+			Statement();
+		}
+		if(current!=END)
+			Error("Un END est attendu.");
+		else
+			current=(TOKEN) lexer->yylex();
+	} else {
+		Error("Un BEGIN est attendu.");
+	}
+}
+
 // Statement := AssignementStatement
 void Statement(void){
-	AssignementStatement();
+	if(current == ID)
+		AssignementStatement();
+	else if(current == IF)
+		IfStatement();
+	else if(current == WHILE)
+		WhileStatement();
+	else if(current == FOR)
+		ForStatement();
+	else if(current == BEGIN)
+		BlockStatement();
+	else
+		Error("Instruction inconnue");
 }
 
 // StatementPart := Statement {";" Statement} "."
