@@ -31,7 +31,7 @@ using namespace std;
 enum OPREL {EQU, DIFF, INF, SUP, INFE, SUPE, WTFR};
 enum OPADD {ADD, SUB, OR, WTFA};
 enum OPMUL {MUL, DIV, MOD, AND ,WTFM};
-enum TYPES {USIGNED_INT, BOOLEAN};
+enum TYPES {INTEGER, BOOLEAN};
 
 TOKEN current;	// Current token
 
@@ -81,13 +81,13 @@ void Error(string s){
 enum TYPES Identifier(void){
 	cout << "\tpush "<<lexer->YYText()<<endl;
 	current=(TOKEN) lexer->yylex();
-	return USIGNED_INT;
+	return INTEGER;
 }
 
 enum TYPES Number(void){
 	cout <<"\tpush $"<<atoi(lexer->YYText())<<endl;
 	current=(TOKEN) lexer->yylex();
-	return USIGNED_INT;
+	return INTEGER;
 }
 
 enum TYPES Expression(void);			// Called by Term() and calls Term()
@@ -107,7 +107,7 @@ enum TYPES Factor(void){
 			type = Number();
 	     	else
 				if(current==ID)
-					Identifier();
+					type=Identifier();
 				else
 					Error("'(' ou chiffre ou lettre attendue");
 	return type;
@@ -314,7 +314,7 @@ void AssignementStatement(void){
 		cerr << "Erreur : Variable '"<<lexer->YYText()<<"' non déclarée"<<endl;
 		exit(-1);
 	}
-	type1 = USIGNED_INT;
+	type1 = INTEGER;
 	variable=lexer->YYText();
 	current=(TOKEN) lexer->yylex();
 	if(current!=ASSIGN)
@@ -399,6 +399,26 @@ void BlockStatement(void){
 	}
 }
 
+void DisplayStatement(void){
+    enum TYPES type;
+    if (current == DISPLAY){
+        current=(TOKEN) lexer->yylex();
+        type = Expression();
+        if (type != INTEGER){
+            Error("Expression de type interger attendu");
+        }
+        cout << "\tpop %rdx\t# The value to be displayed"<<endl;
+        cout << "\tmovq $FormatString1, %rsi\t# \"%llu\\n\""<<endl;
+        cout << "\tmovl    $1, %edi"<<endl;
+        cout << "\tmovl    $0, %eax"<<endl;
+        cout << "\tcall    __printf_chk@PLT"<<endl;
+
+    }else{
+        Error("Display attendu");
+    }
+
+}
+
 // Statement := AssignementStatement
 void Statement(void){
 	if(current == ID)
@@ -411,6 +431,8 @@ void Statement(void){
 		ForStatement();
 	else if(current == BEG)
 		BlockStatement();
+	else if(current == DISPLAY)
+		DisplayStatement();
 	else
 		Error("Instruction inconnue");
 }
@@ -441,6 +463,8 @@ void Program(void){
 int main(void){	// First version : Source code on standard input and assembly code on standard output
 	// Header for gcc assembler / linker
 	cout << "\t\t\t# This code was produced by the CERI Compiler"<<endl;
+	cout << "\t.section .rodata"<<endl;
+    cout << "FormatString1:\t.string \"%llu\\n\""<<endl;
 	// Let's proceed to the analysis and code production
 	current=(TOKEN) lexer->yylex();
 	Program();
