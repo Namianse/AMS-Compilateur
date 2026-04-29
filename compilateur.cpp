@@ -31,6 +31,7 @@ using namespace std;
 enum OPREL {EQU, DIFF, INF, SUP, INFE, SUPE, WTFR};
 enum OPADD {ADD, SUB, OR, WTFA};
 enum OPMUL {MUL, DIV, MOD, AND ,WTFM};
+enum TYPES {USIGNED_INT, BOOLEAN};
 
 TOKEN current;	// Current token
 
@@ -77,22 +78,25 @@ void Error(string s){
 // Letter := "a"|...|"z"
 	
 		
-void Identifier(void){
+enum TYPES Identifier(void){
 	cout << "\tpush "<<lexer->YYText()<<endl;
 	current=(TOKEN) lexer->yylex();
+	return USIGNED_INT;
 }
 
-void Number(void){
+enum TYPES Number(void){
 	cout <<"\tpush $"<<atoi(lexer->YYText())<<endl;
 	current=(TOKEN) lexer->yylex();
+	return USIGNED_INT;
 }
 
-void Expression(void);			// Called by Term() and calls Term()
+enum TYPES Expression(void);			// Called by Term() and calls Term()
 
-void Factor(void){
+enum TYPES Factor(void){
+	enum TYPES type;
 	if(current==RPARENT){
 		current=(TOKEN) lexer->yylex();
-		Expression();
+		type = Expression();
 		if(current!=LPARENT)
 			Error("')' était attendu");		// ")" expected
 		else
@@ -100,12 +104,13 @@ void Factor(void){
 	}
 	else 
 		if (current==NUMBER)
-			Number();
+			type = Number();
 	     	else
 				if(current==ID)
 					Identifier();
 				else
 					Error("'(' ou chiffre ou lettre attendue");
+	return type;
 }
 
 // MultiplicativeOperator := "*" | "/" | "%" | "&&"
@@ -125,12 +130,15 @@ OPMUL MultiplicativeOperator(void){
 }
 
 // Term := Factor {MultiplicativeOperator Factor}
-void Term(void){
+enum TYPES Term(void){
+	enum TYPES type1, type2;
 	OPMUL mulop;
-	Factor();
+	type1 = Factor();
 	while(current==MULOP){
 		mulop=MultiplicativeOperator();		// Save operator in local variable
-		Factor();
+		type2 = Factor();
+		if(type1!=type2)
+			Error("Types incompatibles pour un opérateur multiplicatif");
 		cout << "\tpop %rbx"<<endl;	// get first operand
 		cout << "\tpop %rax"<<endl;	// get second operand
 		switch(mulop){
@@ -156,6 +164,7 @@ void Term(void){
 				Error("opérateur multiplicatif attendu");
 		}
 	}
+	return type1;
 }
 
 // AdditiveOperator := "+" | "-" | "||"
@@ -173,12 +182,15 @@ OPADD AdditiveOperator(void){
 }
 
 // SimpleExpression := Term {AdditiveOperator Term}
-void SimpleExpression(void){
+enum TYPES SimpleExpression(void){
+	enum TYPES type1, type2;
 	OPADD adop;
-	Term();
+	type1 = Term();
 	while(current==ADDOP){
 		adop=AdditiveOperator();		// Save operator in local variable
-		Term();
+		type2 = Term();
+		if(type1!=type2)
+			Error("Types incompatibles pour un opérateur additif");
 		cout << "\tpop %rbx"<<endl;	// get first operand
 		cout << "\tpop %rax"<<endl;	// get second operand
 		switch(adop){
@@ -197,6 +209,7 @@ void SimpleExpression(void){
 		cout << "\tpush %rax"<<endl;			// store result
 	}
 
+	return type1;
 }
 
 // DeclarationPart := "[" Ident {"," Ident} "]"
@@ -246,12 +259,15 @@ OPREL RelationalOperator(void){
 }
 
 // Expression := SimpleExpression [RelationalOperator SimpleExpression]
-void Expression(void){
+enum TYPES Expression(void){
 	OPREL oprel;
-	SimpleExpression();
+	enum TYPES type1, type2;
+	type1 = SimpleExpression();
 	if(current==RELOP){
 		oprel=RelationalOperator();
-		SimpleExpression();
+		type2 = SimpleExpression();
+		if(type1!=type2)
+			Error("Types incompatibles pour un opérateur de comparaison");
 		cout << "\tpop %rax"<<endl;
 		cout << "\tpop %rbx"<<endl;
 		cout << "\tcmpq %rax, %rbx"<<endl;
@@ -281,7 +297,9 @@ void Expression(void){
 		cout << "\tjmp Suite"<<TagNumber<<endl;
 		cout << "Vrai"<<TagNumber<<":\tpush $0xFFFFFFFFFFFFFFFF\t\t# True"<<endl;	
 		cout << "Suite"<<TagNumber<<":"<<endl;
+		return BOOLEAN;
 	}
+	return type1;
 }
 
 void Statement(void);
@@ -289,18 +307,22 @@ void Statement(void);
 // AssignementStatement := Identifier ":=" Expression
 void AssignementStatement(void){
 	string variable;
+	enum TYPES type1, type2;
 	if(current!=ID)
 		Error("Identificateur attendu");
 	if(!IsDeclared(lexer->YYText())){
 		cerr << "Erreur : Variable '"<<lexer->YYText()<<"' non déclarée"<<endl;
 		exit(-1);
 	}
+	type1 = USIGNED_INT;
 	variable=lexer->YYText();
 	current=(TOKEN) lexer->yylex();
 	if(current!=ASSIGN)
 		Error("caractères ':=' attendus");
 	current=(TOKEN) lexer->yylex();
-	Expression();
+	type2 = Expression();
+	if(type1 != type2)
+		Error("Types incompatibles pour une affectation");
 	cout << "\tpop "<<variable<<endl;
 }
 
