@@ -22,6 +22,8 @@
 #include <iostream>
 #include <cstdlib>
 #include <set>
+#include <vector>
+#include <map>
 #include <FlexLexer.h>
 #include "tokeniser.h"
 #include <cstring>
@@ -31,7 +33,6 @@ using namespace std;
 enum OPREL {EQU, DIFF, INF, SUP, INFE, SUPE, WTFR};
 enum OPADD {ADD, SUB, OR, WTFA};
 enum OPMUL {MUL, DIV, MOD, AND ,WTFM};
-enum TYPES {INTEGER, BOOLEAN};
 
 TOKEN current;	// Current token
 
@@ -41,7 +42,7 @@ FlexLexer* lexer = new yyFlexLexer; // This is the flex tokeniser
 // and lexer->YYText() returns the lexicon entry as a string
 
 
-set<string> DeclaredVariables;
+map<string, enum TYPES> DeclaredVariables;
 unsigned long TagNumber=0;
 
 bool IsDeclared(const char *id){
@@ -111,6 +112,83 @@ enum TYPES Factor(void){
 				else
 					Error("'(' ou chiffre ou lettre attendue");
 	return type;
+}
+
+enum TYPES Type(void){
+	if(strcmp(lexer->YYText(),"BOOLEAN")==0){
+		current=(TOKEN) lexer->yylex();
+		return BOOLEAN;
+	}	
+	else if(strcmp(lexer->YYText(),"INTEGER")==0){
+		current=(TOKEN) lexer->yylex();
+		return INTEGER;
+	}
+	else if(strcmp(lexer->YYText(),"DOUBLE")==0){
+		current=(TOKEN) lexer->yylex();
+		return DOUBLE;
+	}
+	else if(strcmp(lexer->YYText(),"CHAR")==0){
+		current=(TOKEN) lexer->yylex();
+		return CHAR;
+	}
+	else{
+		Error("Type inconnu");
+		return ERR; // Juste pour ne pas créer un warning 
+	}
+}
+
+// VarDeclaration := Ident {"," Ident} ":" Type
+void VarDeclaration(void){
+	vector<string> idents;
+	enum TYPES type;
+	if(current!=ID)	Error("Un identificater était attendu");
+	idents.push_back(lexer->YYText());
+	current=(TOKEN) lexer->yylex();
+
+	while(current==COMMA){
+		current=(TOKEN) lexer->yylex();
+		if(current!=ID)
+			Error("Un identificateur était attendu");
+		idents.push_back(lexer->YYText());
+		current=(TOKEN) lexer->yylex();
+	}
+	if(current!=COLON)
+		Error("caractère ':' attendu");
+	current=(TOKEN) lexer->yylex();
+	type=Type();
+
+	for (vector<string>::iterator it=idents.begin(); it!=idents.end(); ++it){
+	    switch(type){
+			case BOOLEAN:
+			case INTEGER:
+				cout << *it << ":\t.quad 0"<<endl;
+				break;
+			case DOUBLE:
+				cout << *it << ":\t.double 0.0"<<endl;
+				break;
+			case CHAR:
+				cout << *it << ":\t.byte 0"<<endl;
+				break;
+			default:
+				Error("type inconnu.");
+		};
+		DeclaredVariables[*it]=type;
+	}
+}
+
+// VarDeclarationPart := "VAR" VarDeclaration {";" VarDeclaration} "."
+void VarDeclarationPart() {
+    if (current != VAR)
+        Error("VAR attendu");
+    current = (TOKEN)lexer->yylex();
+	VarDeclaration();
+	while(current == SEMICOLON){
+		current = (TOKEN)lexer->yylex();
+		VarDeclaration();
+	}
+    if (current != DOT)
+        Error("'.' attendu");
+    current = (TOKEN)lexer->yylex();
 }
 
 // MultiplicativeOperator := "*" | "/" | "%" | "&&"
@@ -223,14 +301,14 @@ void DeclarationPart(void){
 	if(current!=ID)
 		Error("Un identificater était attendu");
 	cout << lexer->YYText() << ":\t.quad 0"<<endl;
-	DeclaredVariables.insert(lexer->YYText());
+	DeclaredVariables.insert({lexer->YYText(), INTEGER});
 	current=(TOKEN) lexer->yylex();
 	while(current==COMMA){
 		current=(TOKEN) lexer->yylex();
 		if(current!=ID)
 			Error("Un identificateur était attendu");
 		cout << lexer->YYText() << ":\t.quad 0"<<endl;
-		DeclaredVariables.insert(lexer->YYText());
+		DeclaredVariables.insert({lexer->YYText(), INTEGER});
 		current=(TOKEN) lexer->yylex();
 	}
 	if(current!=LBRACKET)
@@ -314,8 +392,8 @@ void AssignementStatement(void){
 		cerr << "Erreur : Variable '"<<lexer->YYText()<<"' non déclarée"<<endl;
 		exit(-1);
 	}
-	type1 = INTEGER;
 	variable=lexer->YYText();
+	type1=INTEGER;
 	current=(TOKEN) lexer->yylex();
 	if(current!=ASSIGN)
 		Error("caractères ':=' attendus");
@@ -412,7 +490,6 @@ void DisplayStatement(void){
         cout << "\tmovl    $1, %edi"<<endl;
         cout << "\tmovl    $0, %eax"<<endl;
         cout << "\tcall    __printf_chk@PLT"<<endl;
-
     }else{
         Error("Display attendu");
     }
@@ -442,7 +519,8 @@ void StatementPart(void){
 	cout << "\t.text\t\t# The following lines contain the program"<<endl;
 	cout << "\t.globl main\t# The main function must be visible from outside"<<endl;
 	cout << "main:\t\t\t# The main function body :"<<endl;
-	cout << "\tmovq %rsp, %rbp\t# Save the position of the stack's top"<<endl;
+	cout << "\tpushq %rbp\t\t# Save base pointer"<<endl;
+	cout << "\tmovq %rsp, %rbp\t# Set up stack frame"<<endl;
 	Statement();
 	while(current==SEMICOLON){
 		current=(TOKEN) lexer->yylex();
@@ -453,11 +531,11 @@ void StatementPart(void){
 	current=(TOKEN) lexer->yylex();
 }
 
-// Program := [DeclarationPart] StatementPart
+// Program := [VarDeclarationPart] StatementPart
 void Program(void){
-	if(current==RBRACKET)
-		DeclarationPart();
-	StatementPart();	
+	if(strcmp(lexer->YYText(),"VAR")==0)
+		VarDeclarationPart();
+	StatementPart();		
 }
 
 int main(void){	// First version : Source code on standard input and assembly code on standard output
@@ -469,7 +547,8 @@ int main(void){	// First version : Source code on standard input and assembly co
 	current=(TOKEN) lexer->yylex();
 	Program();
 	// Trailer for the gcc assembler / linker
-	cout << "\tmovq %rbp, %rsp\t\t# Restore the position of the stack's top"<<endl;
+	cout << "\tmovq $0, %rax\t\t# Return value 0"<<endl;
+	cout << "\tpopq %rbp\t\t# Restore base pointer"<<endl;
 	cout << "\tret\t\t\t# Return from main function"<<endl;
 	if(current!=FEOF){
 		cerr <<"Caractères en trop à la fin du programme : ["<<current<<"]";
