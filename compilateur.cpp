@@ -130,7 +130,7 @@ enum TYPES Type(void){
 	else if(strcmp(lexer->YYText(),"CHAR")==0){
 		current=(TOKEN) lexer->yylex();
 		return CHAR;
-	}
+	}	
 	else{
 		Error("Type inconnu");
 		return ERR; // Juste pour ne pas créer un warning 
@@ -393,7 +393,7 @@ void AssignementStatement(void){
 		exit(-1);
 	}
 	variable=lexer->YYText();
-	type1=INTEGER;
+	type1=DeclaredVariables[lexer->YYText()];
 	current=(TOKEN) lexer->yylex();
 	if(current!=ASSIGN)
 		Error("caractères ':=' attendus");
@@ -401,6 +401,16 @@ void AssignementStatement(void){
 	type2 = Expression();
 	if(type1 != type2)
 		Error("Types incompatibles pour une affectation");
+	switch(type1){
+		case DOUBLE:
+            cout << "\tmovsd (%rsp), %xmm0" << endl;
+            cout << "\tmovsd %xmm0, " << variable << "(%rip)" << endl;
+            cout << "\taddq $8, %rsp" << endl;
+            break;
+        default:
+            cout << "\tpop " << variable << endl;
+            break;
+	}
 	cout << "\tpop "<<variable<<endl;
 }
 
@@ -541,7 +551,7 @@ void Program(void){
 int main(void){	// First version : Source code on standard input and assembly code on standard output
 	// Header for gcc assembler / linker
 	cout << "\t\t\t# This code was produced by the CERI Compiler"<<endl;
-	cout << "\t.section .rodata"<<endl;
+	cout << "\t.data"<<endl;
     cout << "FormatString1:\t.string \"%llu\\n\""<<endl;
 	// Let's proceed to the analysis and code production
 	current=(TOKEN) lexer->yylex();
