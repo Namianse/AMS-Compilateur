@@ -10,6 +10,4 @@ compilateur:	compilateur.cpp tokeniser.o
 		g++ -ggdb -o compilateur compilateur.cpp tokeniser.o
 test:		compilateur test.p
 		./compilateur <test.p >test.s
-		gcc -ggdb test.s -o test
-
-
+		gcc -ggdb -no-pie -fno-pie test.s -o test

@@ -42,6 +42,11 @@ unknown [^\"A-Za-z0-9 \n\r\t\(\)\<\>\=\!\%\&\|\}\-\;\.]+
 "WHILE" return WHILE;
 "THEN" return THEN;
 "DISPLAY" return DISPLAY;
+"VAR" return VAR;
+"INTEGER" return INTEGER;
+"BOOLEAN" return BOOLEAN;
+"DOUBLE" return DOUBLE;
+"CHAR" return CHAR;
 
 {addop}		return ADDOP;
 {mulop}		return MULOP;
@@ -53,6 +58,7 @@ unknown [^\"A-Za-z0-9 \n\r\t\(\)\<\>\=\!\%\&\|\}\-\;\.]+
 "]"		return LBRACKET;
 ","		return COMMA;
 ";"		return SEMICOLON;
+":"		return COLON;
 "."		return DOT;
 ":="		return ASSIGN;
 "("		return RPARENT;
